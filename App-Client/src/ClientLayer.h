@@ -15,6 +15,7 @@ class ClientLayer : public Walnut::Layer
 public:
 	virtual void OnAttach() override;
 	virtual void OnDetach() override;
+	virtual void OnUpdate(float ts) override;
 	virtual void OnUIRender() override;
 
 	bool IsConnected() const;
@@ -30,6 +31,8 @@ private:
 	void OnDataReceived(const Walnut::Buffer buffer);
 
 	void SendChatMessage(std::string_view message);
+	void SaveMessageHistoryToFile(const std::filesystem::path& filepath);
+	bool LoadMessageHistoryFromFile(const std::filesystem::path& filepath);
 
 private:
 	void SaveConnectionDetails(const std::filesystem::path& filepath);
@@ -45,9 +48,12 @@ private:
 	float m_ColorBuffer[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 
 	std::string m_Username;
+	std::string m_SelectedUsername;
 	uint32_t m_Color = 0xffffffff;
 
 	std::map<std::string, UserInfo> m_ConnectedClients;
+	std::vector<ChatMessage> m_MessageHistory;
+	std::filesystem::path m_MessageHistoryFilePath;
 	bool m_ConnectionModalOpen = false;
 	bool m_ShowSuccessfulConnectionMessage = false;
 };

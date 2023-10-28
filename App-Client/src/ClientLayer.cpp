@@ -37,6 +37,11 @@ void ClientLayer::OnDetach()
 	m_ScratchBuffer.Release();
 }
 
+void ClientLayer::OnUpdate(float ts) 
+{
+	SaveMessageHistoryToFile(m_MessageHistoryFilePath);
+}
+
 void ClientLayer::OnUIRender()
 {
 	UI_ConnectionModal();
@@ -144,7 +149,20 @@ void ClientLayer::UI_ClientList()
 			continue;
 
 		ImGui::PushStyleColor(ImGuiCol_Text, ImColor(clientInfo.Color).Value);
-		ImGui::Selectable(username.c_str(), &selected);
+		if (ImGui::Selectable(username.c_str(), &selected)) {
+
+			std::cout << "Selected username : " << username.c_str() << std::endl;
+			m_SelectedUsername = username.c_str();
+
+			m_Console.ClearLog();
+
+			// load new m_MessageHistory, based on selected username
+			m_MessageHistoryFilePath = "MessageHistory_" + username + ".yaml";
+			LoadMessageHistoryFromFile(m_MessageHistoryFilePath);
+			for (const auto& message : m_MessageHistory) {
+				m_Console.AddTaggedMessage(message.Username, message.Message);
+			}
+		}
 		ImGui::PopStyleColor();
 	}
 	ImGui::End();
@@ -298,7 +316,16 @@ void ClientLayer::SendChatMessage(std::string_view message)
 	if (IsValidMessage(messageToSend))
 	{
 		Walnut::BufferStreamWriter stream(m_ScratchBuffer);
-		stream.WriteRaw<PacketType>(PacketType::Message);
+		
+		if (!m_SelectedUsername.empty()) {
+			stream.WriteRaw<PacketType>(PacketType::DirectMessage);
+			// TODO: Add username counterpart here
+			messageToSend.insert(0, (m_SelectedUsername + "##"));
+		}
+		else {
+			stream.WriteRaw<PacketType>(PacketType::Message);
+		}
+
 		stream.WriteString(messageToSend);
 		m_Client->SendBuffer(stream.GetBuffer());
 
@@ -357,6 +384,56 @@ bool ClientLayer::LoadConnectionDetails(const std::filesystem::path& filepath)
 	m_ColorBuffer[3] = color.w;
 
 	m_ServerIP = rootNode["ServerIP"].as<std::string>();
+
+	return true;
+}
+
+void ClientLayer::SaveMessageHistoryToFile(const std::filesystem::path& filepath) {
+
+	YAML::Emitter out;
+	{
+		out << YAML::BeginMap; // Root
+		out << YAML::Key << "MessageHistory" << YAML::Value;
+
+		out << YAML::BeginSeq;
+		for (const auto& chatMessage : m_MessageHistory){
+			out << YAML::BeginMap;
+			out << YAML::Key << "User" << YAML::Value << chatMessage.Username;
+			out << YAML::Key << "Message" << YAML::Value << chatMessage.Message;
+			out << YAML::EndMap;
+		}
+		out << YAML::EndSeq;
+		out << YAML::EndMap; // Root
+	}
+
+	std::ofstream fout(filepath);
+	fout << out.c_str();
+}
+
+bool ClientLayer::LoadMessageHistoryFromFile(const std::filesystem::path& filepath) {
+
+	if (!std::filesystem::exists(filepath))
+		return false;
+
+	m_MessageHistory.clear();
+
+	YAML::Node data;
+	try {
+		data = YAML::LoadFile(filepath.string());
+	}
+	catch (YAML::ParserException e) {
+		std::cout << "[ERROR] Failed to load message history " << filepath << std::endl << e.what() << std::endl;
+		return false;
+	}
+
+	auto rootNode = data["MessageHistory"];
+	if (!rootNode)
+		return false;
+
+	m_MessageHistory.reserve(rootNode.size());
+	for (const auto& node : rootNode) {
+		m_MessageHistory.emplace_back(ChatMessage(node["User"].as<std::string>(), node["Message"].as<std::string>()));
+	}
 
 	return true;
 }

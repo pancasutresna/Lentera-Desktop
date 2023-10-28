@@ -112,6 +112,16 @@ enum class PacketType : uint16_t
 	// User has been kicked from server
 	// 1. String reason, could be empty string
 	ClientKick = 11,
+
+	//
+	// -- Message --
+	// 
+	// [Client->Server->Another Client]
+	// 1. Username - UTF-8 serialized as per Hazel
+	// 2. Message - UTF-8 string serialized as per Hazel
+	// [Client->Server]
+	// 1. Message - buffer of UTF-8 chars
+	DirectMessage = 12,
 };
 
 std::string_view PacketTypeToString(PacketType type);

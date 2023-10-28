@@ -125,6 +125,7 @@ void ServerLayer::OnDataReceived(const Walnut::ClientInfo& clientInfo, const Wal
 
 	switch (type)
 	{
+		case PacketType::DirectMessage:
 		case PacketType::Message:
 		{
 			if (!m_ConnectedClients.contains(clientInfo.ID))
