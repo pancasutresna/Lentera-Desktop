@@ -12,3 +12,9 @@ bin-int/
 
 # Exclude
 !vendor/bin
+
+*.yaml
+MessageHistory.yaml
+MessageHistory_*.yaml
+imgui.ini
+ConnectionDetails.yaml

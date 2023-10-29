@@ -56,4 +56,8 @@ private:
 	std::filesystem::path m_MessageHistoryFilePath;
 	bool m_ConnectionModalOpen = false;
 	bool m_ShowSuccessfulConnectionMessage = false;
+	
+	// Send client list every ten seconds
+	const float m_ClientListInterval = 10.0f;
+	float m_ClientListTimer = m_ClientListInterval;
 };

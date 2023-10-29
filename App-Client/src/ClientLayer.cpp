@@ -39,6 +39,15 @@ void ClientLayer::OnDetach()
 
 void ClientLayer::OnUpdate(float ts) 
 {
+	m_ClientListTimer -= ts;
+	if (m_ClientListTimer < 0)
+	{
+		m_ClientListTimer = m_ClientListInterval;
+
+		// Save chat history every 10s too
+		SaveMessageHistoryToFile(m_MessageHistoryFilePath);
+	}
+
 	SaveMessageHistoryToFile(m_MessageHistoryFilePath);
 }
 
@@ -152,15 +161,18 @@ void ClientLayer::UI_ClientList()
 		if (ImGui::Selectable(username.c_str(), &selected)) {
 
 			std::cout << "Selected username : " << username.c_str() << std::endl;
-			m_SelectedUsername = username.c_str();
 
-			m_Console.ClearLog();
+			if (m_SelectedUsername.compare(username.c_str()) != 0) {
+				m_Console.ClearLog();
 
-			// load new m_MessageHistory, based on selected username
-			m_MessageHistoryFilePath = "MessageHistory_" + username + ".yaml";
-			LoadMessageHistoryFromFile(m_MessageHistoryFilePath);
-			for (const auto& message : m_MessageHistory) {
-				m_Console.AddTaggedMessage(message.Username, message.Message);
+				m_SelectedUsername = username.c_str();
+
+				m_MessageHistoryFilePath = "MessageHistory_" + username + ".yaml";
+				// load new m_MessageHistory, based on selected username
+				LoadMessageHistoryFromFile(m_MessageHistoryFilePath);
+				for (const auto& message : m_MessageHistory) {
+					m_Console.AddTaggedMessage(message.Username, message.Message);
+				}
 			}
 		}
 		ImGui::PopStyleColor();
@@ -197,8 +209,12 @@ void ClientLayer::OnDataReceived(const Walnut::Buffer buffer)
 		// Find user
 		if (m_ConnectedClients.contains(fromUsername))
 		{
+			
 			const auto& clientInfo = m_ConnectedClients.at(fromUsername);
+			
+			m_MessageHistory.push_back({ fromUsername, message });
 			m_Console.AddTaggedMessageWithColor(clientInfo.Color, fromUsername, message);
+
 		}
 		else if (fromUsername == "SERVER") // special message from server
 		{
