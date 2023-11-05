@@ -55,7 +55,7 @@ void ClientLayer::OnUIRender()
 {
 	UI_ConnectionModal();
 	
-	m_Console.OnUIRender();
+	m_Console.OnUIRender(m_Username);
 	UI_ClientList();
 }
 
@@ -150,32 +150,22 @@ void ClientLayer::UI_ClientList()
 {
 	ImGui::Begin("Users Online");
 	ImGui::Text("Online: %d", m_ConnectedClients.size());
+	
+	static std::string selected = "";
 
-	static bool selected = false;
 	for (const auto& [username, clientInfo] : m_ConnectedClients)
 	{
-		if (username.empty())
+		if (username.empty())	
 			continue;
 
 		ImGui::PushStyleColor(ImGuiCol_Text, ImColor(clientInfo.Color).Value);
-		if (ImGui::Selectable(username.c_str(), &selected)) {
-
-			std::cout << "Selected username : " << username.c_str() << std::endl;
-
-			if (m_SelectedUsername.compare(username.c_str()) != 0) {
-				m_Console.ClearLog();
-
-				m_SelectedUsername = username.c_str();
-
-				m_MessageHistoryFilePath = "MessageHistory_" + username + ".yaml";
-				// load new m_MessageHistory, based on selected username
-				LoadMessageHistoryFromFile(m_MessageHistoryFilePath);
-				for (const auto& message : m_MessageHistory) {
-					m_Console.AddTaggedMessage(message.Username, message.Message);
-				}
-			}
+		if (ImGui::Selectable(username.c_str(), selected == username)) {
+			selected = username;
+			m_SendDirectMessage = true;
+			m_DirectMessageUsername = username.c_str();
 		}
 		ImGui::PopStyleColor();
+
 	}
 	ImGui::End();
 }
@@ -332,16 +322,15 @@ void ClientLayer::SendChatMessage(std::string_view message)
 	if (IsValidMessage(messageToSend))
 	{
 		Walnut::BufferStreamWriter stream(m_ScratchBuffer);
-		
-		if (!m_SelectedUsername.empty()) {
+	
+		if (m_SendDirectMessage) {
 			stream.WriteRaw<PacketType>(PacketType::DirectMessage);
-			// TODO: Add username counterpart here
-			messageToSend.insert(0, (m_SelectedUsername + "##"));
+			stream.WriteString(m_DirectMessageUsername);
 		}
 		else {
 			stream.WriteRaw<PacketType>(PacketType::Message);
 		}
-
+		
 		stream.WriteString(messageToSend);
 		m_Client->SendBuffer(stream.GetBuffer());
 
@@ -391,6 +380,7 @@ bool ClientLayer::LoadConnectionDetails(const std::filesystem::path& filepath)
 		return false;
 
 	m_Username = rootNode["Username"].as<std::string>();
+	m_DirectMessageUsername = m_Username;
 
 	m_Color = rootNode["Color"].as<uint32_t>();
 	ImVec4 color = ImColor(m_Color).Value;

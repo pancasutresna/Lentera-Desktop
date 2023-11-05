@@ -41,14 +41,17 @@ private:
 	std::unique_ptr<Walnut::Client> m_Client;
 	Walnut::UI::Console m_Console{ "Chat" };
 	std::string m_ServerIP;
-	std::filesystem::path m_ConnectionDetailsFilePath = "ConnectionDetails.yaml";
+	std::string m_DataDirectory = "Data";
+	std::filesystem::path m_ConnectionDetailsFilePath = m_DataDirectory + "\\ConnectionDetails.yaml";
 
 	Walnut::Buffer m_ScratchBuffer;
 
 	float m_ColorBuffer[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 
-	std::string m_Username;
-	std::string m_SelectedUsername;
+	std::string m_Username = "";
+	std::string m_DirectMessageUsername = "";
+	bool m_SendDirectMessage = false;
+	
 	uint32_t m_Color = 0xffffffff;
 
 	std::map<std::string, UserInfo> m_ConnectedClients;
@@ -60,4 +63,5 @@ private:
 	// Send client list every ten seconds
 	const float m_ClientListInterval = 10.0f;
 	float m_ClientListTimer = m_ClientListInterval;
+	
 };

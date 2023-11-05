@@ -66,13 +66,20 @@ void ServerLayer::OnUIRender()
 		ImGui::Begin("Client Info");
 		ImGui::Text("Connected clients: %d", m_ConnectedClients.size());
 
-		static bool selected = false;
+		// This will show All at the top of the user list
+		static std::string selected = "";
+
 		for (const auto& [id, name] : m_ConnectedClients)
 		{
 			if (name.Username.empty())
 				continue;
+			
+			if (ImGui::Selectable(name.Username.c_str(), selected == name.Username)) {
+				selected = name.Username;
+				m_SendDirectMessage = true;
+				m_DirectMessageUsername = name.Username.c_str();
+			}
 
-			ImGui::Selectable(name.Username.c_str(), &selected);
 			if (ImGui::IsItemHovered())
 			{
 				// Get some more info about client from server
@@ -126,6 +133,38 @@ void ServerLayer::OnDataReceived(const Walnut::ClientInfo& clientInfo, const Wal
 	switch (type)
 	{
 		case PacketType::DirectMessage:
+		{
+			if (!m_ConnectedClients.contains(clientInfo.ID))
+			{
+				// Reject message data from clients we don't recognize
+				m_Console.AddMessage("Rejected incoming data from client ID={}", clientInfo.ID);
+				m_Console.AddMessage("  ConnectionDesc={}", clientInfo.ConnectionDesc);
+				return;
+			}
+
+			std::string to_username, message;
+
+			// TODO: check for valid username
+			stream.ReadString(to_username);
+
+			if (stream.ReadString(message))
+			{
+				if (IsValidMessage(message)) // will trim to 4096 max chars if necessary (as defined in UserInfo.h)
+				{
+
+					// Send to other clients and record
+					WL_CORE_VERIFY(m_ConnectedClients.contains(clientInfo.ID));
+					const auto& client = m_ConnectedClients.at(clientInfo.ID);
+
+					m_MessageHistory.push_back({ client.Username, message });
+					m_Console.AddTaggedMessageWithColor(client.Color | 0xff000000, client.Username, message);
+					
+					std::string_view from_username = client.Username;
+					DirectMessage(from_username, to_username, message);
+				}
+			}
+			break;
+		}
 		case PacketType::Message:
 		{
 			if (!m_ConnectedClients.contains(clientInfo.ID))
@@ -308,6 +347,16 @@ void ServerLayer::SendClientKick(const Walnut::ClientInfo& clientInfo, std::stri
 	m_Server->SendBufferToClient(clientInfo.ID, Walnut::Buffer(m_ScratchBuffer, stream.GetStreamPosition()));
 }
 
+
+void ServerLayer::SendMessageToClient(std::string_view from_username, const Walnut::ClientInfo& clientInfo, std::string_view message) {
+	Walnut::BufferStreamWriter stream(m_ScratchBuffer);
+	stream.WriteRaw<PacketType>(PacketType::Message);
+	stream.WriteString(std::string(from_username));
+	stream.WriteString(std::string(message));
+
+	m_Server->SendBufferToClient(clientInfo.ID, Walnut::Buffer(m_ScratchBuffer, stream.GetStreamPosition()));
+}
+
 bool ServerLayer::KickUser(std::string_view username, std::string_view reason)
 {
 	for (const auto& [clientID, userInfo] : m_ConnectedClients)
@@ -324,6 +373,16 @@ bool ServerLayer::KickUser(std::string_view username, std::string_view reason)
 
 	// Could not find user with requested username
 	return false;
+}
+
+bool ServerLayer::DirectMessage(std::string_view from_username, std::string_view to_username, std::string_view message) {
+	for (const auto& [clientID, userInfo] : m_ConnectedClients) {
+		if (userInfo.Username == to_username) {
+			Walnut::ClientInfo clientInfo = { clientID, "" };
+			SendMessageToClient(from_username, clientInfo, message);
+			return true;
+		}
+	}
 }
 
 void ServerLayer::Quit()
@@ -361,6 +420,14 @@ void ServerLayer::SendChatMessage(std::string_view message)
 	{
 		// Try to run command instead
 		OnCommand(message);
+		return;
+	}
+
+	// TODO: set this to true when selecting a user to send a direct message to
+	if(m_SendDirectMessage) {
+		std::string_view from_username = "SERVER";
+		std::string_view username = m_DirectMessageUsername;
+		DirectMessage(from_username, username, message);
 		return;
 	}
 
@@ -403,6 +470,11 @@ void ServerLayer::OnCommand(std::string_view command)
 		{
 			m_Console.AddItalicMessage("Kick command requires single argument, eg. /kick <username>");
 		}
+	} else if (tokens[0] == "help") {
+		m_Console.AddItalicMessage("Available commands:");
+		m_Console.AddItalicMessage("  /kick <username> [reason]");
+		m_Console.AddItalicMessage("  /help");
+		m_Console.AddItalicMessage("  /quit");
 	}
 }
 

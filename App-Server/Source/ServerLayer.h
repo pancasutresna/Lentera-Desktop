@@ -46,12 +46,14 @@ private:
 	void SendMessageHistory(const Walnut::ClientInfo& clientInfo);
 	void SendServerShutdownToAllClients();
 	void SendClientKick(const Walnut::ClientInfo& clientInfo, std::string_view reason);
+	void SendMessageToClient(std::string_view from_username, const Walnut::ClientInfo& toClient, std::string_view message);
 	////////////////////////////////////////////////////////////////////////////////
 
 	////////////////////////////////////////////////////////////////////////////////
 	// Commands
 	////////////////////////////////////////////////////////////////////////////////
 	bool KickUser(std::string_view username, std::string_view reason = "");
+	bool DirectMessage(std::string_view from_username, std::string_view username, std::string_view message = "");
 	void Quit();
 	////////////////////////////////////////////////////////////////////////////////
 
@@ -65,6 +67,8 @@ private:
 	bool LoadMessageHistoryFromFile(const std::filesystem::path& filepath);
 private:
 	std::unique_ptr<Walnut::Server> m_Server;
+	std::string m_DirectMessageUsername = "";
+	bool m_SendDirectMessage = false;
 #ifdef WL_HEADLESS
 	HeadlessConsole m_Console{ "Server Console" };
 #else
