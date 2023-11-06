@@ -39,16 +39,17 @@ void ClientLayer::OnDetach()
 
 void ClientLayer::OnUpdate(float ts) 
 {
-	m_ClientListTimer -= ts;
-	if (m_ClientListTimer < 0)
-	{
-		m_ClientListTimer = m_ClientListInterval;
 
-		// Save chat history every 10s too
-		SaveMessageHistoryToFile(m_MessageHistoryFilePath);
-	}
+	//m_ClientListTimer -= ts;
+	//if (m_ClientListTimer < 0)
+	//{
+	//	m_ClientListTimer = m_ClientListInterval;
 
-	SaveMessageHistoryToFile(m_MessageHistoryFilePath);
+	//	// Save chat history every 10s too
+	//	SaveMessageHistoryToFile(m_MessageHistoryFilePath);
+	//}
+
+	//SaveMessageHistoryToFile(m_MessageHistoryFilePath);
 }
 
 void ClientLayer::OnUIRender()
@@ -163,6 +164,12 @@ void ClientLayer::UI_ClientList()
 			selected = username;
 			m_SendDirectMessage = true;
 			m_DirectMessageUsername = username.c_str();
+			m_MessageHistoryFilePath = m_DataDirectory + "\\" + m_DirectMessageUsername + "\\" + m_MessageHistoryFileName;
+
+			// TODO: Create files and directory if it doesn't exist
+
+			std::cout << "Loading message history for : " << m_DirectMessageUsername << std::endl;
+			LoadMessageHistoryFromFile(m_DataDirectory + "\\ADMIN\\" + m_MessageHistoryFileName );
 		}
 		ImGui::PopStyleColor();
 
@@ -173,6 +180,7 @@ void ClientLayer::UI_ClientList()
 void ClientLayer::OnConnected()
 {
 	m_Console.ClearLog();
+	LoadMessageHistoryFromFile(m_DataDirectory + "\\ADMIN\\" + m_MessageHistoryFileName);
 	// Welcome message sent in PacketType::ClientConnectionRequest response handling
 }
 
@@ -208,6 +216,8 @@ void ClientLayer::OnDataReceived(const Walnut::Buffer buffer)
 		}
 		else if (fromUsername == "SERVER") // special message from server
 		{
+			m_DirectMessageUsername = "SERVER";
+			m_MessageHistory.push_back({ fromUsername, message });
 			m_Console.AddTaggedMessage(fromUsername, message);
 		}
 		else
@@ -216,6 +226,8 @@ void ClientLayer::OnDataReceived(const Walnut::Buffer buffer)
 			// display message anyway
 			m_Console.AddTaggedMessage(fromUsername, message);
 		}
+
+		SaveMessageHistoryToFile(m_DataDirectory + "\\" + m_DirectMessageUsername + "\\" + m_MessageHistoryFileName);
 
 		break;
 	}
