@@ -42,6 +42,7 @@ private:
 	Walnut::UI::Console m_Console{ "Chat" };
 	std::string m_ServerIP;
 	std::string m_DataDirectory = "Data";
+	std::string m_MessageHistoryFileName = "MessageHistory.yaml";
 	std::filesystem::path m_ConnectionDetailsFilePath = m_DataDirectory + "\\ConnectionDetails.yaml";
 
 	Walnut::Buffer m_ScratchBuffer;
