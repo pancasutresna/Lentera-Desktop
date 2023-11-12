@@ -14,7 +14,11 @@ bin-int/
 !vendor/bin
 
 *.yaml
+imgui.ini
 MessageHistory.yaml
 MessageHistory_*.yaml
-imgui.ini
 ConnectionDetails.yaml
+/App-Client/imgui.ini
+/App-Server/imgui.ini
+/App-Server/MessageHistory.yaml
+
