@@ -169,7 +169,8 @@ void ClientLayer::UI_ClientList()
 			// TODO: Create files and directory if it doesn't exist
 
 			std::cout << "Loading message history for : " << m_DirectMessageUsername << std::endl;
-			LoadMessageHistoryFromFile(m_DataDirectory + "\\ADMIN\\" + m_MessageHistoryFileName );
+			std::cout << "MessageHistory file : " << m_MessageHistoryFilePath << std::endl;
+			LoadMessageHistoryFromFile(m_MessageHistoryFilePath);
 		}
 		ImGui::PopStyleColor();
 
@@ -430,10 +431,18 @@ void ClientLayer::SaveMessageHistoryToFile(const std::filesystem::path& filepath
 
 bool ClientLayer::LoadMessageHistoryFromFile(const std::filesystem::path& filepath) {
 
-	if (!std::filesystem::exists(filepath))
+	if (!std::filesystem::exists(filepath)) {
+		std::cout << "File doesn't exist" << std::endl;
+		// TODO: create file if it doesn't exist
 		return false;
+	}
+	else {
+		std::cout << "File exist" << std::endl;
+	}
 
-	m_MessageHistory.clear();
+	// TODO: Uncomment this
+	// m_MessageHistory.clear();
+	
 
 	YAML::Node data;
 	try {
@@ -448,9 +457,11 @@ bool ClientLayer::LoadMessageHistoryFromFile(const std::filesystem::path& filepa
 	if (!rootNode)
 		return false;
 
+	m_Console.ClearLog();
 	m_MessageHistory.reserve(rootNode.size());
 	for (const auto& node : rootNode) {
-		m_MessageHistory.emplace_back(ChatMessage(node["User"].as<std::string>(), node["Message"].as<std::string>()));
+		m_Console.AddTaggedMessage(node["User"].as<std::string>(), node["Message"].as<std::string>());
+		//m_MessageHistory.emplace_back(ChatMessage(node["User"].as<std::string>(), node["Message"].as<std::string>()));
 	}
 
 	return true;
