@@ -214,6 +214,25 @@ void ClientLayer::OnDataReceived(const Walnut::Buffer buffer)
 			m_MessageHistory.push_back({ fromUsername, message });
 			m_Console.AddTaggedMessageWithColor(clientInfo.Color, fromUsername, message);
 
+			// TODO: append chat to sender file
+			std::string senderFile = m_DataDirectory + "\\" + fromUsername + "\\" + m_MessageHistoryFileName;
+			std::ofstream myFile;
+			myFile.open(senderFile, std::ios_base::app);
+
+			YAML::Emitter out;
+			{
+				out << YAML::BeginSeq;
+				out << YAML::BeginMap;
+				out << YAML::Key << "User" << YAML::Value << fromUsername;
+				out << YAML::Key << "Message" << YAML::Value << message;
+				out << YAML::EndMap;
+				out << YAML::EndSeq;
+
+			}
+
+			myFile << out.c_str() << std::endl;
+			myFile.close();
+
 		}
 		else if (fromUsername == "SERVER") // special message from server
 		{
@@ -228,7 +247,8 @@ void ClientLayer::OnDataReceived(const Walnut::Buffer buffer)
 			m_Console.AddTaggedMessage(fromUsername, message);
 		}
 
-		SaveMessageHistoryToFile(m_DataDirectory + "\\" + m_DirectMessageUsername + "\\" + m_MessageHistoryFileName);
+		//m_MessageHistory.emplace_back(fromUsername, message));
+		//SaveMessageHistoryToFile(m_DataDirectory + "\\" + fromUsername + "\\" + m_MessageHistoryFileName);
 
 		break;
 	}
@@ -347,7 +367,28 @@ void ClientLayer::SendChatMessage(std::string_view message)
 		stream.WriteString(messageToSend);
 		m_Client->SendBuffer(stream.GetBuffer());
 
+
+		// TODO: append chat to sender file
+		std::string senderFile = m_DataDirectory + "\\" + m_DirectMessageUsername + "\\" + m_MessageHistoryFileName;
+		std::ofstream myFile;
+		myFile.open(senderFile, std::ios_base::app);
+
+		YAML::Emitter out;
+		{
+			out << YAML::BeginSeq;
+			out << YAML::BeginMap;
+			out << YAML::Key << "User" << YAML::Value << m_Username;
+			out << YAML::Key << "Message" << YAML::Value << messageToSend;
+			out << YAML::EndMap;
+			out << YAML::EndSeq;
+		}
+
+		myFile << out.c_str() << std::endl;
+		myFile.close();
+
+
 		// echo in own console
+		// TODO: check this out
 		m_Console.AddTaggedMessageWithColor(m_Color | 0xff000000, m_Username, messageToSend);
 	}
 }
@@ -440,9 +481,7 @@ bool ClientLayer::LoadMessageHistoryFromFile(const std::filesystem::path& filepa
 		std::cout << "File exist" << std::endl;
 	}
 
-	// TODO: Uncomment this
-	// m_MessageHistory.clear();
-	
+	m_MessageHistory.clear();
 
 	YAML::Node data;
 	try {
@@ -453,15 +492,15 @@ bool ClientLayer::LoadMessageHistoryFromFile(const std::filesystem::path& filepa
 		return false;
 	}
 
-	auto rootNode = data["MessageHistory"];
-	if (!rootNode)
-		return false;
+	//auto rootNode = data["MessageHistory"];
+	//if (!rootNode)
+	//	return false;
 
 	m_Console.ClearLog();
-	m_MessageHistory.reserve(rootNode.size());
-	for (const auto& node : rootNode) {
+	//m_MessageHistory.reserve(rootNode.size());
+	for (const auto& node : data) {
 		m_Console.AddTaggedMessage(node["User"].as<std::string>(), node["Message"].as<std::string>());
-		//m_MessageHistory.emplace_back(ChatMessage(node["User"].as<std::string>(), node["Message"].as<std::string>()));
+		m_MessageHistory.emplace_back(ChatMessage(node["User"].as<std::string>(), node["Message"].as<std::string>()));
 	}
 
 	return true;
