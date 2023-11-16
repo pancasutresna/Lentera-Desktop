@@ -40,13 +40,20 @@ void ClientLayer::OnDetach()
 void ClientLayer::OnUpdate(float ts) 
 {
 
-	//m_ClientListTimer -= ts;
+	// m_ClientListTimer -= ts;
 	//if (m_ClientListTimer < 0)
 	//{
-	//	m_ClientListTimer = m_ClientListInterval;
+		//m_Console.ClearLog();
+		//m_ClientListTimer = m_ClientListInterval;
 
-	//	// Save chat history every 10s too
-	//	SaveMessageHistoryToFile(m_MessageHistoryFilePath);
+		// Display new chat from m_MessageHistory
+		//for (const auto& chatMessage : m_MessageHistory) {
+		//	const auto& clientInfo = m_ConnectedClients.at(chatMessage.Username);
+		//	std::cout << "Username: " << chatMessage.Username << std::endl;
+		//	//m_Console.AddTaggedMessageWithColor(clientInfo.Color, chatMessage.Username, chatMessage.Message);
+		//}
+		
+		//SaveMessageHistoryToFile(m_MessageHistoryFilePath);
 	//}
 
 	//SaveMessageHistoryToFile(m_MessageHistoryFilePath);
@@ -158,18 +165,15 @@ void ClientLayer::UI_ClientList()
 	{
 		if (username.empty())	
 			continue;
-
+		
 		ImGui::PushStyleColor(ImGuiCol_Text, ImColor(clientInfo.Color).Value);
 		if (ImGui::Selectable(username.c_str(), selected == username)) {
 			selected = username;
+
+		
 			m_SendDirectMessage = true;
 			m_DirectMessageUsername = username.c_str();
 			m_MessageHistoryFilePath = m_DataDirectory + "\\" + m_DirectMessageUsername + "\\" + m_MessageHistoryFileName;
-
-			// TODO: Create files and directory if it doesn't exist
-
-			std::cout << "Loading message history for : " << m_DirectMessageUsername << std::endl;
-			std::cout << "MessageHistory file : " << m_MessageHistoryFilePath << std::endl;
 			LoadMessageHistoryFromFile(m_MessageHistoryFilePath);
 		}
 		ImGui::PopStyleColor();
@@ -212,27 +216,12 @@ void ClientLayer::OnDataReceived(const Walnut::Buffer buffer)
 			const auto& clientInfo = m_ConnectedClients.at(fromUsername);
 			
 			m_MessageHistory.push_back({ fromUsername, message });
-			m_Console.AddTaggedMessageWithColor(clientInfo.Color, fromUsername, message);
+			AppendMessageToHistoryFile(ChatMessage(fromUsername, message));
 
-			// TODO: append chat to sender file
-			std::string senderFile = m_DataDirectory + "\\" + fromUsername + "\\" + m_MessageHistoryFileName;
-			std::ofstream myFile;
-			myFile.open(senderFile, std::ios_base::app);
-
-			YAML::Emitter out;
-			{
-				out << YAML::BeginSeq;
-				out << YAML::BeginMap;
-				out << YAML::Key << "User" << YAML::Value << fromUsername;
-				out << YAML::Key << "Message" << YAML::Value << message;
-				out << YAML::EndMap;
-				out << YAML::EndSeq;
-
-			}
-
-			myFile << out.c_str() << std::endl;
-			myFile.close();
-
+			if (fromUsername == m_DirectMessageUsername) {
+				m_Console.AddTaggedMessageWithColor(clientInfo.Color, fromUsername, message);
+			} 
+			
 		}
 		else if (fromUsername == "SERVER") // special message from server
 		{
@@ -248,7 +237,6 @@ void ClientLayer::OnDataReceived(const Walnut::Buffer buffer)
 		}
 
 		//m_MessageHistory.emplace_back(fromUsername, message));
-		//SaveMessageHistoryToFile(m_DataDirectory + "\\" + fromUsername + "\\" + m_MessageHistoryFileName);
 
 		break;
 	}
@@ -367,25 +355,8 @@ void ClientLayer::SendChatMessage(std::string_view message)
 		stream.WriteString(messageToSend);
 		m_Client->SendBuffer(stream.GetBuffer());
 
-
-		// TODO: append chat to sender file
-		std::string senderFile = m_DataDirectory + "\\" + m_DirectMessageUsername + "\\" + m_MessageHistoryFileName;
-		std::ofstream myFile;
-		myFile.open(senderFile, std::ios_base::app);
-
-		YAML::Emitter out;
-		{
-			out << YAML::BeginSeq;
-			out << YAML::BeginMap;
-			out << YAML::Key << "User" << YAML::Value << m_Username;
-			out << YAML::Key << "Message" << YAML::Value << messageToSend;
-			out << YAML::EndMap;
-			out << YAML::EndSeq;
-		}
-
-		myFile << out.c_str() << std::endl;
-		myFile.close();
-
+		AppendMessageToHistoryFile(m_DirectMessageUsername, ChatMessage(m_Username, messageToSend));
+		m_MessageHistory.emplace_back(ChatMessage{ m_Username, messageToSend });
 
 		// echo in own console
 		// TODO: check this out
@@ -472,15 +443,9 @@ void ClientLayer::SaveMessageHistoryToFile(const std::filesystem::path& filepath
 
 bool ClientLayer::LoadMessageHistoryFromFile(const std::filesystem::path& filepath) {
 
-	if (!std::filesystem::exists(filepath)) {
-		std::cout << "File doesn't exist" << std::endl;
-		// TODO: create file if it doesn't exist
+	if (!std::filesystem::exists(filepath))
 		return false;
-	}
-	else {
-		std::cout << "File exist" << std::endl;
-	}
-
+	
 	m_MessageHistory.clear();
 
 	YAML::Node data;
@@ -504,4 +469,32 @@ bool ClientLayer::LoadMessageHistoryFromFile(const std::filesystem::path& filepa
 	}
 
 	return true;
+}
+
+void ClientLayer::AppendMessageToHistoryFile(ChatMessage chat) {
+	AppendMessageToHistoryFile(chat.Username, chat);
+}
+
+void ClientLayer::AppendMessageToHistoryFile(std::string username, ChatMessage chat) {
+
+	std::filesystem::path userDirectory = m_DataDirectory + "\\" + username;
+	if (std::filesystem::create_directories(userDirectory)) {
+		std::cout << "Directory created" << std::endl;
+	}
+	std::string filepath = userDirectory.string() + "\\" + m_MessageHistoryFileName;
+
+	std::ofstream myFile(filepath, std::ios_base::app);
+
+	YAML::Emitter out;
+	{
+		out << YAML::BeginSeq;
+		out << YAML::BeginMap;
+		out << YAML::Key << "User" << YAML::Value << chat.Username;
+		out << YAML::Key << "Message" << YAML::Value << chat.Message;
+		out << YAML::EndMap;
+		out << YAML::EndSeq;
+	}
+
+	myFile << out.c_str() << std::endl;
+	myFile.close();
 }

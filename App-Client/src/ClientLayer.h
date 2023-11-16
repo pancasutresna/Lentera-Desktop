@@ -33,6 +33,12 @@ private:
 	void SendChatMessage(std::string_view message);
 	void SaveMessageHistoryToFile(const std::filesystem::path& filepath);
 	bool LoadMessageHistoryFromFile(const std::filesystem::path& filepath);
+	void AppendMessageToHistoryFile(const ChatMessage chat);
+	void AppendMessageToHistoryFile(std::string username, const ChatMessage chat);
+
+
+	
+
 
 private:
 	void SaveConnectionDetails(const std::filesystem::path& filepath);
