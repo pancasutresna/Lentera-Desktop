@@ -122,6 +122,8 @@ enum class PacketType : uint16_t
 	// [Client->Server]
 	// 1. Message - buffer of UTF-8 chars
 	DirectMessage = 12,
+	UpdateClientList = 13,
+
 };
 
 std::string_view PacketTypeToString(PacketType type);

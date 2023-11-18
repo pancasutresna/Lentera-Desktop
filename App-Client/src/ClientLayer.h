@@ -34,8 +34,8 @@ private:
 	void SaveMessageHistoryToFile(const std::filesystem::path& filepath);
 	bool LoadMessageHistoryFromFile(const std::filesystem::path& filepath);
 	void AppendMessageToHistoryFile(const ChatMessage chat);
-	void AppendMessageToHistoryFile(std::string username, const ChatMessage chat);
-
+	void AppendMessageToHistoryFile(std::string username, const ChatMessage chat, bool isSending);
+	int CheckForUnreadMessages(std::string username);
 
 	
 

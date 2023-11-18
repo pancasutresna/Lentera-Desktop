@@ -39,13 +39,17 @@ void ClientLayer::OnDetach()
 
 void ClientLayer::OnUpdate(float ts) 
 {
+	// TODO: Check message history file for new messages
 
-	// m_ClientListTimer -= ts;
-	//if (m_ClientListTimer < 0)
-	//{
+	m_ClientListTimer -= ts;
+	if (m_ClientListTimer < 0)
+	{
+
+		std::cout << "m_ClientListTimer after 10.0f : " << m_ClientListTimer << std::endl;
+		m_ClientListTimer = m_ClientListInterval;
+
 		//m_Console.ClearLog();
-		//m_ClientListTimer = m_ClientListInterval;
-
+		
 		// Display new chat from m_MessageHistory
 		//for (const auto& chatMessage : m_MessageHistory) {
 		//	const auto& clientInfo = m_ConnectedClients.at(chatMessage.Username);
@@ -54,7 +58,7 @@ void ClientLayer::OnUpdate(float ts)
 		//}
 		
 		//SaveMessageHistoryToFile(m_MessageHistoryFilePath);
-	//}
+	}
 
 	//SaveMessageHistoryToFile(m_MessageHistoryFilePath);
 }
@@ -161,24 +165,38 @@ void ClientLayer::UI_ClientList()
 	
 	static std::string selected = "";
 
-	for (const auto& [username, clientInfo] : m_ConnectedClients)
-	{
-		if (username.empty())	
-			continue;
-		
-		ImGui::PushStyleColor(ImGuiCol_Text, ImColor(clientInfo.Color).Value);
-		if (ImGui::Selectable(username.c_str(), selected == username)) {
-			selected = username;
+	if (m_ConnectedClients.size() > 0) {
 
-		
-			m_SendDirectMessage = true;
-			m_DirectMessageUsername = username.c_str();
-			m_MessageHistoryFilePath = m_DataDirectory + "\\" + m_DirectMessageUsername + "\\" + m_MessageHistoryFileName;
-			LoadMessageHistoryFromFile(m_MessageHistoryFilePath);
+		for (const auto& [username, clientInfo] : m_ConnectedClients)
+		{
+			if (username.empty())
+				continue;
+
+			
+
+			ImGui::PushStyleColor(ImGuiCol_Text, ImColor(clientInfo.Color).Value);
+
+			if (ImGui::Selectable(username.c_str(), selected == username)) {
+				selected = username;
+
+				m_SendDirectMessage = true;
+				m_DirectMessageUsername = username.c_str();
+				m_MessageHistoryFilePath = m_DataDirectory + "\\" + m_DirectMessageUsername + "\\" + m_MessageHistoryFileName;
+				LoadMessageHistoryFromFile(m_MessageHistoryFilePath);
+			}
+
+			// TODO: check connected client for unread messages
+			if (clientInfo.UnreadMessages > 0) {
+				ImGui::SameLine();
+				std::string unreadMessageStr = "\[" + std::to_string(clientInfo.UnreadMessages) + "\]";
+				ImGui::Text(unreadMessageStr.c_str());
+			}
+
+			ImGui::PopStyleColor();
+
 		}
-		ImGui::PopStyleColor();
-
 	}
+
 	ImGui::End();
 }
 
@@ -213,14 +231,17 @@ void ClientLayer::OnDataReceived(const Walnut::Buffer buffer)
 		if (m_ConnectedClients.contains(fromUsername))
 		{
 			
-			const auto& clientInfo = m_ConnectedClients.at(fromUsername);
+			auto& clientInfo = m_ConnectedClients.at(fromUsername);
 			
 			m_MessageHistory.push_back({ fromUsername, message });
 			AppendMessageToHistoryFile(ChatMessage(fromUsername, message));
 
 			if (fromUsername == m_DirectMessageUsername) {
 				m_Console.AddTaggedMessageWithColor(clientInfo.Color, fromUsername, message);
-			} 
+			}
+
+			clientInfo.UnreadMessages++;
+			std::cout << "Unread Messages: " << clientInfo.UnreadMessages << std::endl;
 			
 		}
 		else if (fromUsername == "SERVER") // special message from server
@@ -267,6 +288,14 @@ void ClientLayer::OnDataReceived(const Walnut::Buffer buffer)
 		m_ConnectedClients.clear();
 		for (const auto& client : clientList)
 			m_ConnectedClients[client.Username] = client;
+
+		break;
+	}
+	case PacketType::UpdateClientList:
+	{
+		UserInfo userInfo;
+		stream.ReadObject(userInfo);
+		m_ConnectedClients[userInfo.Username] = userInfo;
 
 		break;
 	}
@@ -355,7 +384,7 @@ void ClientLayer::SendChatMessage(std::string_view message)
 		stream.WriteString(messageToSend);
 		m_Client->SendBuffer(stream.GetBuffer());
 
-		AppendMessageToHistoryFile(m_DirectMessageUsername, ChatMessage(m_Username, messageToSend));
+		AppendMessageToHistoryFile(m_DirectMessageUsername, ChatMessage(m_Username, messageToSend), true);
 		m_MessageHistory.emplace_back(ChatMessage{ m_Username, messageToSend });
 
 		// echo in own console
@@ -472,10 +501,10 @@ bool ClientLayer::LoadMessageHistoryFromFile(const std::filesystem::path& filepa
 }
 
 void ClientLayer::AppendMessageToHistoryFile(ChatMessage chat) {
-	AppendMessageToHistoryFile(chat.Username, chat);
+	AppendMessageToHistoryFile(chat.Username, chat, false);
 }
 
-void ClientLayer::AppendMessageToHistoryFile(std::string username, ChatMessage chat) {
+void ClientLayer::AppendMessageToHistoryFile(std::string username, ChatMessage chat, bool isSending) {
 
 	std::filesystem::path userDirectory = m_DataDirectory + "\\" + username;
 	if (std::filesystem::create_directories(userDirectory)) {
@@ -491,10 +520,44 @@ void ClientLayer::AppendMessageToHistoryFile(std::string username, ChatMessage c
 		out << YAML::BeginMap;
 		out << YAML::Key << "User" << YAML::Value << chat.Username;
 		out << YAML::Key << "Message" << YAML::Value << chat.Message;
+		out << YAML::Key << "Read" << YAML::Value << isSending;
 		out << YAML::EndMap;
 		out << YAML::EndSeq;
 	}
 
 	myFile << out.c_str() << std::endl;
 	myFile.close();
+}
+
+int ClientLayer::CheckForUnreadMessages(std::string username) {
+	int unreadMessages = 0;
+
+	
+
+	std::string filepath = m_DataDirectory + "\\" + username + "\\" + m_MessageHistoryFileName;
+
+	if (!std::filesystem::exists(filepath))
+		return unreadMessages;
+
+	YAML::Node data;
+	try {
+		data = YAML::LoadFile(filepath);
+	}
+	catch (YAML::ParserException e) {
+		std::cout << "[ERROR] Failed to load message history " << filepath << std::endl << e.what() << std::endl;
+		return unreadMessages;
+	}
+
+	for (const auto& node : data) {
+		if (node["User"]) {
+			std::cout << "User found" << std::endl;
+		}
+	}
+
+	//for (const auto& node : data) {
+	//	m_Console.AddTaggedMessage(node["User"].as<std::string>(), node["Message"].as<std::string>());
+	//	m_MessageHistory.emplace_back(ChatMessage(node["User"].as<std::string>(), node["Message"].as<std::string>()));
+	//}
+
+	return unreadMessages;
 }

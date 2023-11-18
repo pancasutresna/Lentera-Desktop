@@ -52,7 +52,7 @@ void ServerLayer::OnUpdate(float ts)
 	if (m_ClientListTimer < 0)
 	{
 		m_ClientListTimer = m_ClientListInterval;
-		SendClientListToAllClients();
+		//SendClientListToAllClients();
 
 		// Save chat history every 10s too
 		SaveMessageHistoryToFile(m_MessageHistoryFilePath);
@@ -206,11 +206,16 @@ void ServerLayer::OnDataReceived(const Walnut::ClientInfo& clientInfo, const Wal
 					auto& client = m_ConnectedClients[clientInfo.ID];
 					client.Username = requestedUsername;
 					client.Color = requestedColor;
+
+					
 					// connection complete? notify everyone else
 					SendClientConnect(clientInfo);
 
 					// Send the new client info about other connected clients
 					SendClientList(clientInfo);
+
+					// TODO: Should exclude current clientInfo
+					UpdateClientList(client);
 					
 					// Send message history to new client
 					SendMessageHistory(clientInfo);
@@ -242,6 +247,15 @@ void ServerLayer::OnClientConnectionRequest(const Walnut::ClientInfo& clientInfo
 void ServerLayer::OnClientUpdate(const Walnut::ClientInfo& clientInfo, uint32_t userColor, std::string_view username)
 {
 
+}
+
+void ServerLayer::UpdateClientList(const UserInfo& userInfo) {
+	Walnut::BufferStreamWriter stream(m_ScratchBuffer);
+	stream.WriteRaw<PacketType>(PacketType::UpdateClientList);
+	stream.WriteObject<UserInfo>(userInfo);
+
+	// WL_INFO("Sending client list to all clients");
+	m_Server->SendBufferToAllClients(Walnut::Buffer(m_ScratchBuffer, stream.GetStreamPosition()));
 }
 
 void ServerLayer::SendClientList(const Walnut::ClientInfo& clientInfo)

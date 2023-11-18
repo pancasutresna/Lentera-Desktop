@@ -7,6 +7,7 @@ struct UserInfo
 {
 	uint32_t Color;
 	std::string Username;
+	int UnreadMessages = 0;
 
 	static void Serialize(Walnut::StreamWriter* serializer, const UserInfo& instance)
 	{

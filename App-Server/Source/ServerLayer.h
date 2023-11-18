@@ -36,6 +36,7 @@ private:
 	////////////////////////////////////////////////////////////////////////////////
 	// Handle outgoing messages
 	////////////////////////////////////////////////////////////////////////////////
+	void UpdateClientList(const UserInfo& userInfo);
 	void SendClientList(const Walnut::ClientInfo& clientInfo);
 	void SendClientListToAllClients();
 	void SendClientConnect(const Walnut::ClientInfo& clientInfo);
